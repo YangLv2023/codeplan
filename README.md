@@ -1,6 +1,6 @@
 # Infini-AI Proxy API
 
-这是一个逆向代理服务，将无问芯穹（Infini-AI）的API转换为标准的OpenAI和Anthropic协议接口。
+这是一个逆向代理服务，将某问某穹（某平台）的API转换为标准的OpenAI和Anthropic协议接口。
 
 ## 功能特性
 
@@ -126,7 +126,7 @@ curl -X POST http://localhost:8000/coding/v1/messages \
 
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
-| INFINI_AI_BASE_URL | Infini-AI API基础URL | https://cloud.infini-ai.com |
+| INFINI_AI_BASE_URL | 某平台API基础URL | https://不可展示-ai.com |
 | INFINI_AI_COOKIES | Cookie池（JSON数组格式） | [] |
 | DEFAULT_MODEL | 默认模型 | glm-5.1 |
 | API_HOST | API服务监听地址 | 0.0.0.0 |
@@ -169,3 +169,17 @@ python -m pytest test_app.py -v
 ## 许可证
 
 MIT License
+
+## 免责声明
+
+本项目仅供学习交流和技术研究目的使用，严禁用于任何商业用途或非法用途。
+
+使用本项目时，请遵守以下规定：
+
+1. **禁止商业使用**：未经授权，不得将本项目用于任何商业目的
+2. **禁止非法用途**：不得利用本项目从事任何违反法律法规的活动
+3. **遵守服务条款**：使用本项目时请遵守相关平台的服务条款和使用协议
+4. **风险自负**：使用本项目所产生的一切后果由使用者自行承担，与项目作者无关
+5. **尊重知识产权**：请尊重原作者及相关平台的知识产权
+
+本项目作者不对因使用本项目而产生的任何直接或间接损失承担责任。如果您不同意上述条款，请勿使用本项目。
