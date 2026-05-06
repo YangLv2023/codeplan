@@ -3,8 +3,9 @@ import json
 import time
 import uuid
 from typing import List, Optional, Dict, Any, Iterator
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 import requests
 from dotenv import load_dotenv
@@ -16,6 +17,32 @@ app = FastAPI(title="Infini-AI Proxy API", version="1.0.0")
 INFINI_AI_BASE_URL = os.getenv("INFINI_AI_BASE_URL", "https://cloud.infini-ai.com")
 INFINI_AI_COOKIE = os.getenv("INFINI_AI_COOKIE", "")
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "glm-5.1")
+API_KEY = os.getenv("API_KEY", "infini-ai-proxy-2024-secure-key-x7k9m2p4")
+
+security = HTTPBearer(auto_error=False)
+
+
+async def verify_api_key(request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    api_key = None
+    
+    if credentials:
+        api_key = credentials.credentials
+    elif "api_key" in request.query_params:
+        api_key = request.query_params["api_key"]
+    elif "apikey" in request.query_params:
+        api_key = request.query_params["apikey"]
+    elif "authorization" in request.headers:
+        auth_header = request.headers["authorization"]
+        if auth_header.startswith("Bearer "):
+            api_key = auth_header[7:]
+    
+    if not api_key or api_key != API_KEY:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing API key. Please provide a valid API key in the Authorization header or as a query parameter."
+        )
+    
+    return api_key
 
 
 class Message(BaseModel):
@@ -82,7 +109,7 @@ async def root():
 
 @app.get("/coding/v1/models")
 @app.get("/coding/v1/models/")
-async def list_models_openai():
+async def list_models_openai(api_key: str = Depends(verify_api_key)):
     models = [
         ModelInfo(id="glm-5.1"),
         ModelInfo(id="glm-4"),
@@ -93,14 +120,14 @@ async def list_models_openai():
 
 
 @app.get("/coding/v1/models/{model_id}")
-async def get_model_openai(model_id: str):
+async def get_model_openai(model_id: str, api_key: str = Depends(verify_api_key)):
     model = ModelInfo(id=model_id)
     return model.dict()
 
 
 @app.post("/coding/v1/chat/completions")
 @app.post("/coding/v1/chat/completions/")
-async def chat_completions_openai(request: ChatCompletionRequest):
+async def chat_completions_openai(request: ChatCompletionRequest, api_key: str = Depends(verify_api_key)):
     url = f"{INFINI_AI_BASE_URL}/maas/{request.model}/nvidia/chat/completions"
     
     payload = {
@@ -138,19 +165,8 @@ async def chat_completions_openai(request: ChatCompletionRequest):
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 
-@app.get("/coding/v1/models")
-async def list_models_anthropic():
-    models = [
-        ModelInfo(id="glm-5.1"),
-        ModelInfo(id="glm-4"),
-        ModelInfo(id="deepseek-chat"),
-        ModelInfo(id="deepseek-coder"),
-    ]
-    return {"object": "list", "data": [model.dict() for model in models]}
-
-
 @app.post("/coding/v1/messages")
-async def messages_anthropic(request: AnthropicRequest):
+async def messages_anthropic(request: AnthropicRequest, api_key: str = Depends(verify_api_key)):
     url = f"{INFINI_AI_BASE_URL}/maas/{request.model}/nvidia/chat/completions"
     
     payload = {

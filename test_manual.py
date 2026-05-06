@@ -2,6 +2,8 @@ import requests
 import json
 
 BASE_URL = "http://localhost:8000"
+API_KEY = "infini-ai-proxy-2024-secure-key-x7k9m2p4"
+HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 
 def test_openai_chat():
     print("测试OpenAI协议聊天接口...")
@@ -12,7 +14,7 @@ def test_openai_chat():
         "stream": False
     }
     
-    response = requests.post(url, json=payload)
+    response = requests.post(url, json=payload, headers=HEADERS)
     print(f"状态码: {response.status_code}")
     if response.status_code == 200:
         data = response.json()
@@ -30,7 +32,7 @@ def test_openai_stream():
         "stream": True
     }
     
-    response = requests.post(url, json=payload, stream=True)
+    response = requests.post(url, json=payload, stream=True, headers=HEADERS)
     print(f"状态码: {response.status_code}")
     if response.status_code == 200:
         print("流式响应:")
@@ -64,7 +66,7 @@ def test_anthropic_chat():
         "stream": False
     }
     
-    response = requests.post(url, json=payload)
+    response = requests.post(url, json=payload, headers=HEADERS)
     print(f"状态码: {response.status_code}")
     if response.status_code == 200:
         data = response.json()
@@ -77,7 +79,7 @@ def test_models():
     print("测试模型列表接口...")
     url = f"{BASE_URL}/coding/v1/models"
     
-    response = requests.get(url)
+    response = requests.get(url, headers=HEADERS)
     print(f"状态码: {response.status_code}")
     if response.status_code == 200:
         data = response.json()

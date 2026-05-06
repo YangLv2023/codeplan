@@ -14,6 +14,7 @@
 
 - ✅ 支持流式和非流式响应
 - ✅ 支持Docker容器化部署
+- ✅ 支持API Key认证保护
 
 ## 快速开始
 
@@ -59,12 +60,21 @@ docker run -d -p 8000:8000 \
 
 ## API使用示例
 
+**重要：所有API请求都需要在请求头中包含API Key进行认证。**
+
+默认API Key: `infini-ai-proxy-2024-secure-key-x7k9m2p4`
+
+认证方式（任选其一）：
+1. 在请求头中添加: `Authorization: Bearer YOUR_API_KEY`
+2. 在URL参数中添加: `?api_key=YOUR_API_KEY`
+
 ### OpenAI协议示例
 
 #### 非流式请求
 ```bash
 curl -X POST http://localhost:8000/coding/v1/chat/completions \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer infini-ai-proxy-2024-secure-key-x7k9m2p4" \
   -d '{
     "model": "glm-5.1",
     "messages": [{"role": "user", "content": "你好"}],
@@ -76,6 +86,7 @@ curl -X POST http://localhost:8000/coding/v1/chat/completions \
 ```bash
 curl -X POST http://localhost:8000/coding/v1/chat/completions \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer infini-ai-proxy-2024-secure-key-x7k9m2p4" \
   -d '{
     "model": "glm-5.1",
     "messages": [{"role": "user", "content": "你好"}],
@@ -89,6 +100,7 @@ curl -X POST http://localhost:8000/coding/v1/chat/completions \
 ```bash
 curl -X POST http://localhost:8000/coding/v1/messages \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer infini-ai-proxy-2024-secure-key-x7k9m2p4" \
   -d '{
     "model": "glm-5.1",
     "messages": [{"role": "user", "content": "你好"}],
@@ -101,6 +113,7 @@ curl -X POST http://localhost:8000/coding/v1/messages \
 ```bash
 curl -X POST http://localhost:8000/coding/v1/messages \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer infini-ai-proxy-2024-secure-key-x7k9m2p4" \
   -d '{
     "model": "glm-5.1",
     "messages": [{"role": "user", "content": "你好"}],
@@ -118,6 +131,7 @@ curl -X POST http://localhost:8000/coding/v1/messages \
 | DEFAULT_MODEL | 默认模型 | glm-5.1 |
 | API_HOST | API服务监听地址 | 0.0.0.0 |
 | API_PORT | API服务监听端口 | 8000 |
+| API_KEY | API认证密钥 | infini-ai-proxy-2024-secure-key-x7k9m2p4 |
 
 ## 测试
 

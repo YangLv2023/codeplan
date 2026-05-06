@@ -7,6 +7,9 @@ from fastapi.testclient import TestClient
 
 client = TestClient(app)
 
+API_KEY = "infini-ai-proxy-2024-secure-key-x7k9m2p4"
+HEADERS = {"Authorization": f"Bearer {API_KEY}"}
+
 
 def test_root():
     """测试根路径"""
@@ -18,7 +21,7 @@ def test_root():
 
 def test_list_models_openai():
     """测试OpenAI协议的模型列表接口"""
-    response = client.get("/coding/v1/models")
+    response = client.get("/coding/v1/models", headers=HEADERS)
     assert response.status_code == 200
     data = response.json()
     assert "object" in data
@@ -30,7 +33,7 @@ def test_list_models_openai():
 
 def test_get_model_openai():
     """测试OpenAI协议的单个模型查询接口"""
-    response = client.get("/coding/v1/models/glm-5.1")
+    response = client.get("/coding/v1/models/glm-5.1", headers=HEADERS)
     assert response.status_code == 200
     data = response.json()
     assert "id" in data
@@ -51,7 +54,7 @@ def test_chat_completions_openai_non_stream():
         "temperature": 0.6
     }
     
-    response = client.post("/coding/v1/chat/completions", json=payload)
+    response = client.post("/coding/v1/chat/completions", json=payload, headers=HEADERS)
     assert response.status_code == 200
     data = response.json()
     assert "choices" in data
@@ -71,7 +74,7 @@ def test_chat_completions_openai_stream():
         "temperature": 0.6
     }
     
-    response = client.post("/coding/v1/chat/completions", json=payload)
+    response = client.post("/coding/v1/chat/completions", json=payload, headers=HEADERS)
     assert response.status_code == 200
     
     content_received = False
@@ -105,7 +108,7 @@ def test_messages_anthropic_non_stream():
         "temperature": 0.6
     }
     
-    response = client.post("/coding/v1/messages", json=payload)
+    response = client.post("/coding/v1/messages", json=payload, headers=HEADERS)
     assert response.status_code == 200
     data = response.json()
     assert "id" in data
@@ -128,7 +131,7 @@ def test_messages_anthropic_stream():
         "temperature": 0.6
     }
     
-    response = client.post("/coding/v1/messages", json=payload)
+    response = client.post("/coding/v1/messages", json=payload, headers=HEADERS)
     assert response.status_code == 200
     
     content_received = False
@@ -160,8 +163,39 @@ def test_invalid_model():
         "max_tokens": 100
     }
     
-    response = client.post("/coding/v1/chat/completions", json=payload)
+    response = client.post("/coding/v1/chat/completions", json=payload, headers=HEADERS)
     assert response.status_code in [400, 404, 500]
+
+
+def test_invalid_api_key():
+    """测试无效的API key"""
+    payload = {
+        "model": "glm-5.1",
+        "messages": [
+            {"role": "user", "content": "你好"}
+        ],
+        "stream": False,
+        "max_tokens": 100
+    }
+    
+    invalid_headers = {"Authorization": "Bearer invalid-key"}
+    response = client.post("/coding/v1/chat/completions", json=payload, headers=invalid_headers)
+    assert response.status_code == 401
+
+
+def test_missing_api_key():
+    """测试缺少API key"""
+    payload = {
+        "model": "glm-5.1",
+        "messages": [
+            {"role": "user", "content": "你好"}
+        ],
+        "stream": False,
+        "max_tokens": 100
+    }
+    
+    response = client.post("/coding/v1/chat/completions", json=payload)
+    assert response.status_code == 401
 
 
 if __name__ == "__main__":
