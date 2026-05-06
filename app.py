@@ -111,6 +111,8 @@ async def verify_api_key(request: Request, credentials: HTTPAuthorizationCredent
         
         if credentials:
             api_key = credentials.credentials
+        elif "x-api-key" in request.headers:
+            api_key = request.headers["x-api-key"]
         elif "api_key" in request.query_params:
             api_key = request.query_params["api_key"]
         elif "apikey" in request.query_params:
@@ -124,7 +126,7 @@ async def verify_api_key(request: Request, credentials: HTTPAuthorizationCredent
             log(f"API key validation failed - IP: {request.client.host if request.client else 'unknown'}")
             raise HTTPException(
                 status_code=401,
-                detail="Invalid or missing API key. Please provide a valid API key in the Authorization header or as a query parameter."
+                detail="Invalid or missing API key. Please provide a valid API key in the Authorization header, x-api-key header, or as a query parameter."
             )
         
         log_debug(f"API key validated successfully")
@@ -147,8 +149,8 @@ class ChatCompletionRequest(BaseModel):
     stream: bool = False
     max_tokens: Optional[int] = 8192
     temperature: Optional[float] = 0.4
-    top_p: Optional[float] = 0.9
-    top_k: Optional[int] = 0
+    top_p: Optional[float] = 0.95
+    top_k: Optional[int] = -1
     frequency_penalty: Optional[float] = 0
     presence_penalty: Optional[float] = 0
 
@@ -164,8 +166,8 @@ class AnthropicRequest(BaseModel):
     max_tokens: int = 4096
     stream: bool = False
     temperature: Optional[float] = 0.4
-    top_p: Optional[float] = 0.9
-    top_k: Optional[int] = 0
+    top_p: Optional[float] = 0.95
+    top_k: Optional[int] = -1
     tools: Optional[List[Dict[str, Any]]] = None
     system: Optional[Union[str, List[Dict[str, Any]]]] = None
 
@@ -252,30 +254,37 @@ async def root():
 
 
 @app.post("/debug/inspect/v1/messages")
-async def debug_inspect(request: Request, api_key: str = Depends(verify_api_key)):
+async def debug_inspect(request: Request):
     body = await request.json()
     
     import sys
     import io
     
-    output = io.StringIO()
-    output.write("=" * 80 + "\n")
-    output.write("DEBUG: Received request\n")
-    output.write("=" * 80 + "\n")
-    output.write(f"Method: {request.method}\n")
-    output.write(f"URL: {request.url}\n")
-    output.write(f"Query Params: {dict(request.query_params)}\n")
-    output.write(f"Body: {json.dumps(body, ensure_ascii=False, indent=2)}\n")
-    output.write("=" * 80 + "\n")
+    auth_header = request.headers.get("authorization", "NOT FOUND")
+    auth_header_lower = request.headers.get("Authorization", "NOT FOUND")
     
-    print(output.getvalue(), file=sys.stderr)
-    
-    return {
-        "method": request.method,
-        "url": str(request.url),
-        "query_params": dict(request.query_params),
-        "body": body
+    debug_info = {
+        "authorization_lowercase": auth_header,
+        "authorization_uppercase": auth_header_lower,
+        "all_headers": dict(request.headers),
+        "query_params": dict(request.query_params)
     }
+    
+    with open("debug_auth.txt", "w", encoding="utf-8") as f:
+        f.write("=" * 80 + "\n")
+        f.write("AUTHORIZATION DEBUG INFO\n")
+        f.write("=" * 80 + "\n")
+        f.write(f"Authorization (lowercase): {auth_header}\n")
+        f.write(f"Authorization (uppercase): {auth_header_lower}\n")
+        f.write("\nAll Headers:\n")
+        for key, value in request.headers.items():
+            f.write(f"  {key}: {value}\n")
+        f.write("\nQuery Params:\n")
+        for key, value in request.query_params.items():
+            f.write(f"  {key}: {value}\n")
+        f.write("=" * 80 + "\n")
+    
+    return debug_info
 
 
 @app.get("/coding/v1/models")
