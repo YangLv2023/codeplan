@@ -104,10 +104,10 @@ class ChatCompletionRequest(BaseModel):
     model: str = DEFAULT_MODEL
     messages: List[Message]
     stream: bool = False
-    max_tokens: Optional[int] = 65536
-    temperature: Optional[float] = 0.6
-    top_k: Optional[int] = 50
-    top_p: Optional[float] = 0.7
+    max_tokens: Optional[int] = 8192
+    temperature: Optional[float] = 0.4
+    top_p: Optional[float] = 0.9
+    top_k: Optional[int] = 0
     frequency_penalty: Optional[float] = 0
     presence_penalty: Optional[float] = 0
 
@@ -120,11 +120,11 @@ class AnthropicMessage(BaseModel):
 class AnthropicRequest(BaseModel):
     model: str = DEFAULT_MODEL
     messages: List[AnthropicMessage]
-    max_tokens: int = 1024
+    max_tokens: int = 4096
     stream: bool = False
-    temperature: Optional[float] = 0.6
-    top_k: Optional[int] = 50
-    top_p: Optional[float] = 0.7
+    temperature: Optional[float] = 0.4
+    top_p: Optional[float] = 0.9
+    top_k: Optional[int] = 0
     tools: Optional[List[Dict[str, Any]]] = None
     system: Optional[Union[str, List[Dict[str, Any]]]] = None
 
