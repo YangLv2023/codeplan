@@ -127,11 +127,31 @@ curl -X POST http://localhost:8000/coding/v1/messages \
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
 | INFINI_AI_BASE_URL | Infini-AI API基础URL | https://cloud.infini-ai.com |
-| INFINI_AI_COOKIE | 认证Cookie | - |
+| INFINI_AI_COOKIES | Cookie池（JSON数组格式） | [] |
 | DEFAULT_MODEL | 默认模型 | glm-5.1 |
 | API_HOST | API服务监听地址 | 0.0.0.0 |
 | API_PORT | API服务监听端口 | 8000 |
 | API_KEY | API认证密钥 | infini-ai-proxy-2024-secure-key-x7k9m2p4 |
+| DEBUG | 调试模式 | false |
+
+## Cookie池配置说明
+
+支持配置多个Cookie账号，实现负载均衡和容错：
+
+```bash
+# 单个Cookie
+INFINI_AI_COOKIES=["cookie1"]
+
+# 多个Cookie（推荐）
+INFINI_AI_COOKIES=["cookie1", "cookie2", "cookie3"]
+```
+
+### Cookie池特性
+
+- **轮询机制**：每次请求自动轮询使用不同的Cookie
+- **失效剔除**：遇到401认证失败自动移除失效Cookie
+- **限流处理**：遇到429错误自动等待10秒后重试
+- **自动重试**：最多重试3次，确保请求成功
 
 ## 测试
 

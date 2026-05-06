@@ -8,9 +8,10 @@ services:
       - "8000:8000"
     environment:
       - INFINI_AI_BASE_URL=https://cloud.infini-ai.com
-      - INFINI_AI_COOKIE=${INFINI_AI_COOKIE}
+      - INFINI_AI_COOKIES=${INFINI_AI_COOKIES}
       - DEFAULT_MODEL=glm-5.1
       - API_HOST=0.0.0.0
       - API_PORT=8000
       - API_KEY=${API_KEY:-infini-ai-proxy-2024-secure-key-x7k9m2p4}
+      - DEBUG=${DEBUG:-false}
     restart: unless-stopped

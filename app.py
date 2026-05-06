@@ -53,13 +53,54 @@ def log_debug(message: str):
 app = FastAPI(title="Infini-AI Proxy API", version="1.0.0")
 
 INFINI_AI_BASE_URL = os.getenv("INFINI_AI_BASE_URL", "https://cloud.infini-ai.com")
-INFINI_AI_COOKIE = os.getenv("INFINI_AI_COOKIE", "")
+INFINI_AI_COOKIES_STR = os.getenv("INFINI_AI_COOKIES", "[]")
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "glm-5.1")
 API_KEY = os.getenv("API_KEY", "infini-ai-proxy-2024-secure-key-x7k9m2p4")
+
+class CookiePool:
+    def __init__(self, cookies_str: str):
+        self.cookies = []
+        self.current_index = 0
+        self.lock = None
+        
+        try:
+            cookies_list = json.loads(cookies_str)
+            if isinstance(cookies_list, list):
+                self.cookies = cookies_list
+            else:
+                self.cookies = [cookies_str] if cookies_str else []
+        except json.JSONDecodeError:
+            if cookies_str:
+                self.cookies = [cookies_str]
+        
+        log(f"Cookie pool initialized with {len(self.cookies)} cookie(s)")
+    
+    def get_next_cookie(self):
+        if not self.cookies:
+            log("No cookies available in pool", "ERROR")
+            return None
+        
+        cookie = self.cookies[self.current_index]
+        self.current_index = (self.current_index + 1) % len(self.cookies)
+        log_debug(f"Using cookie index {self.current_index - 1 if self.current_index > 0 else len(self.cookies) - 1}, remaining: {len(self.cookies)}")
+        return cookie
+    
+    def remove_cookie(self, cookie: str):
+        if cookie in self.cookies:
+            self.cookies.remove(cookie)
+            log(f"Removed invalid cookie from pool, remaining: {len(self.cookies)}")
+            if self.current_index >= len(self.cookies):
+                self.current_index = 0
+    
+    def has_cookies(self):
+        return len(self.cookies) > 0
+
+cookie_pool = CookiePool(INFINI_AI_COOKIES_STR)
 
 log(f"Starting Infini-AI Proxy API v1.0.0")
 log(f"DEBUG mode: {DEBUG}")
 log(f"API Key configured: {'Yes' if API_KEY else 'No'}")
+log(f"Cookies in pool: {len(cookie_pool.cookies)}")
 
 security = HTTPBearer(auto_error=False)
 
@@ -137,6 +178,10 @@ class ModelInfo(BaseModel):
 
 
 def get_headers():
+    cookie = cookie_pool.get_next_cookie()
+    if not cookie:
+        raise HTTPException(status_code=503, detail="No valid cookies available in pool")
+    
     return {
         "accept": "text/event-stream",
         "accept-language": "zh-CN,zh;q=0.9",
@@ -144,8 +189,55 @@ def get_headers():
         "origin": INFINI_AI_BASE_URL,
         "referer": f"{INFINI_AI_BASE_URL}/genstudio/experience",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
-        "cookie": INFINI_AI_COOKIE
+        "cookie": cookie
     }
+
+
+def make_request(url: str, payload: dict, stream: bool = False, request_id: str = ""):
+    max_retries = 3
+    retry_count = 0
+    
+    while retry_count < max_retries:
+        try:
+            headers = get_headers()
+            current_cookie = headers.get("cookie", "")
+            
+            response = requests.post(
+                url,
+                headers=headers,
+                json=payload,
+                stream=stream,
+                timeout=120.0
+            )
+            
+            if response.status_code == 429:
+                log(f"[{request_id}] Rate limited (429), waiting 10 seconds before retry...")
+                time.sleep(10)
+                retry_count += 1
+                continue
+            
+            if response.status_code == 401:
+                log(f"[{request_id}] Authentication failed (401), removing invalid cookie")
+                cookie_pool.remove_cookie(current_cookie)
+                
+                if not cookie_pool.has_cookies():
+                    raise HTTPException(status_code=503, detail="No valid cookies available")
+                
+                retry_count += 1
+                continue
+            
+            response.raise_for_status()
+            return response
+            
+        except requests.HTTPError as e:
+            if e.response.status_code in [429, 401]:
+                continue
+            raise
+        except Exception as e:
+            log_error(f"[{request_id}] Request failed", e)
+            raise
+    
+    raise HTTPException(status_code=429, detail="Max retries exceeded due to rate limiting")
 
 
 def stream_response(response: requests.Response) -> Iterator[str]:
@@ -207,6 +299,9 @@ async def get_model_openai(model_id: str, api_key: str = Depends(verify_api_key)
 @app.post("/coding/v1/chat/completions")
 @app.post("/coding/v1/chat/completions/")
 async def chat_completions_openai(request: ChatCompletionRequest, api_key: str = Depends(verify_api_key)):
+    request_id = str(uuid.uuid4())[:8]
+    log(f"[{request_id}] Received OpenAI request - Model: {request.model}, Stream: {request.stream}")
+    
     url = f"{INFINI_AI_BASE_URL}/maas/{request.model}/nvidia/chat/completions"
     
     payload = {
@@ -223,8 +318,7 @@ async def chat_completions_openai(request: ChatCompletionRequest, api_key: str =
     
     try:
         if request.stream:
-            response = requests.post(url, headers=get_headers(), json=payload, stream=True, timeout=120.0)
-            response.raise_for_status()
+            response = make_request(url, payload, stream=True, request_id=request_id)
             return StreamingResponse(
                 stream_response(response),
                 media_type="text/event-stream",
@@ -235,12 +329,12 @@ async def chat_completions_openai(request: ChatCompletionRequest, api_key: str =
                 }
             )
         else:
-            response = requests.post(url, headers=get_headers(), json=payload, timeout=120.0)
-            response.raise_for_status()
+            response = make_request(url, payload, stream=False, request_id=request_id)
             return JSONResponse(content=response.json())
-    except requests.HTTPError as e:
-        raise HTTPException(status_code=e.response.status_code, detail=f"Upstream API error: {e.response.text}")
+    except HTTPException:
+        raise
     except Exception as e:
+        log_error(f"[{request_id}] Unexpected error", e)
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 
@@ -349,8 +443,7 @@ async def messages_anthropic(request: AnthropicRequest, api_key: str = Depends(v
         
         if request.stream:
             log(f"[{request_id}] Processing streaming request")
-            response = requests.post(url, headers=get_headers(), json=payload, stream=True, timeout=120.0)
-            response.raise_for_status()
+            response = make_request(url, payload, stream=True, request_id=request_id)
             
             def anthropic_stream():
                 try:
@@ -391,8 +484,7 @@ async def messages_anthropic(request: AnthropicRequest, api_key: str = Depends(v
             )
         else:
             log(f"[{request_id}] Processing non-streaming request")
-            response = requests.post(url, headers=get_headers(), json=payload, timeout=120.0)
-            response.raise_for_status()
+            response = make_request(url, payload, stream=False, request_id=request_id)
             
             openai_response = response.json()
             log_debug(f"[{request_id}] Upstream response: {json.dumps(openai_response, ensure_ascii=False, indent=2)}")
