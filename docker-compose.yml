@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  infini-ai-proxy:
+    build: .
+    container_name: infini-ai-proxy
+    ports:
+      - "8000:8000"
+    environment:
+      - INFINI_AI_BASE_URL=https://cloud.infini-ai.com
+      - INFINI_AI_COOKIE=${INFINI_AI_COOKIE}
+      - DEFAULT_MODEL=glm-5.1
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+    restart: unless-stopped
