@@ -2,7 +2,7 @@ import os
 import json
 import time
 import uuid
-from typing import List, Optional, Dict, Any, Iterator
+from typing import List, Optional, Dict, Any, Iterator, Union
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -64,7 +64,7 @@ class ChatCompletionRequest(BaseModel):
 
 class AnthropicMessage(BaseModel):
     role: str
-    content: str
+    content: Union[str, List[Dict[str, Any]]]
 
 
 class AnthropicRequest(BaseModel):
@@ -105,6 +105,33 @@ def stream_response(response: requests.Response) -> Iterator[str]:
 @app.get("/")
 async def root():
     return {"message": "Infini-AI Proxy API is running", "version": "1.0.0"}
+
+
+@app.post("/debug/inspect/v1/messages")
+async def debug_inspect(request: Request, api_key: str = Depends(verify_api_key)):
+    body = await request.json()
+    
+    import sys
+    import io
+    
+    output = io.StringIO()
+    output.write("=" * 80 + "\n")
+    output.write("DEBUG: Received request\n")
+    output.write("=" * 80 + "\n")
+    output.write(f"Method: {request.method}\n")
+    output.write(f"URL: {request.url}\n")
+    output.write(f"Query Params: {dict(request.query_params)}\n")
+    output.write(f"Body: {json.dumps(body, ensure_ascii=False, indent=2)}\n")
+    output.write("=" * 80 + "\n")
+    
+    print(output.getvalue(), file=sys.stderr)
+    
+    return {
+        "method": request.method,
+        "url": str(request.url),
+        "query_params": dict(request.query_params),
+        "body": body
+    }
 
 
 @app.get("/coding/v1/models")
@@ -169,9 +196,24 @@ async def chat_completions_openai(request: ChatCompletionRequest, api_key: str =
 async def messages_anthropic(request: AnthropicRequest, api_key: str = Depends(verify_api_key)):
     url = f"{INFINI_AI_BASE_URL}/maas/{request.model}/nvidia/chat/completions"
     
+    messages = []
+    for msg in request.messages:
+        if isinstance(msg.content, str):
+            content = msg.content
+        elif isinstance(msg.content, list):
+            text_parts = []
+            for item in msg.content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    text_parts.append(item.get("text", ""))
+            content = "\n".join(text_parts)
+        else:
+            content = str(msg.content)
+        
+        messages.append({"role": msg.role, "content": content})
+    
     payload = {
         "model": request.model,
-        "messages": [{"role": msg.role, "content": msg.content} for msg in request.messages],
+        "messages": messages,
         "stream": request.stream,
         "max_tokens": request.max_tokens,
         "temperature": request.temperature,
